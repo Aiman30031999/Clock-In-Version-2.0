@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Company Clock-In</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f5f7; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+        .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 100%; max-width: 400px; box-sizing: border-box; text-align: center; }
+        h2 { color: #333; margin-bottom: 20px; }
+        label { display: block; text-align: left; margin-bottom: 5px; font-weight: bold; color: #555; font-size: 14px; }
+        input, select { width: 100%; padding: 12px; margin-bottom: 18px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
+        .btn-group { display: flex; gap: 12px; margin-top: 10px; }
+        button { flex: 1; padding: 14px; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; color: white; transition: background 0.2s; }
+        .btn-in { background: #28a745; }
+        .btn-out { background: #dc3545; }
+        #status { margin-top: 16px; font-size: 14px; font-weight: 500; }
+        #preview { max-width: 100%; max-height: 150px; margin-bottom: 15px; border-radius: 6px; display: none; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>Worker Time Clock</h2>
+    
+    <label>Employee Name</label>
+    <input type="text" id="empName" placeholder="Your Full Name" required>
+    
+    <label>Current Odometer Reading (KM)</label>
+    <input type="number" id="odometer" placeholder="e.g. 45230" required>
+    
+    <label>Proof of Work Photo</label>
+    <input type="file" id="photoFile" accept="image/*" capture="environment" onchange="previewImage()">
+    <img id="preview" src="" alt="Preview">
+    
+    <div class="btn-group">
+        <button class="btn-in" onclick="handleClock('Clock In')">Clock In</button>
+        <button class="btn-out" onclick="handleClock('Clock Out')">Clock Out</button>
+    </div>
+    <div id="status"></div>
+</div>
+
+<script>
+    // ⚠️ PASTE YOUR NEW GOOGLE WEB APP URL BETWEEN THE QUOTES BELOW
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbw0VrKc6MFbLWpJZnQhgq-8WJvGn5JVvqeA06g0plymuXmIVFcqCBKoS3cfzD6dP7MWLw/exec"; 
+
+    function previewImage() {
+        const file = document.getElementById('photoFile').files[0];
+        const preview = document.getElementById('preview');
+        if (file) {
+            preview.src = URL.createObjectURL(file);
+            preview.style.display = 'block';
+        }
+    }
+
+    function handleClock(action) {
+        const empName = document.getElementById('empName').value.trim();
+        const odometer = document.getElementById('odometer').value.trim();
+        const photoFile = document.getElementById('photoFile').files[0];
+
+        if (!empName || !odometer) {
+            setStatus('Please enter your name and odometer reading.', '#dc3545');
+            return;
+        }
+
+        setStatus('Getting location & preparing data...', '#666');
+
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    // Generates a clickable Google Maps link using coordinates
+                    const mapsLink = `https://www.google.com/maps?q=${position.coords.latitude},${position.coords.longitude}`;
+                    processPhotoAndSend(empName, action, mapsLink, odometer, photoFile);
+                },
+                (error) => {
+                    processPhotoAndSend(empName, action, "Location Denied", odometer, photoFile);
+                },
+                { enableHighAccuracy: true, timeout: 7000 }
+            );
+        } else {
+            processPhotoAndSend(empName, action, "GPS Not Supported", odometer, photoFile);
+        }
+    }
+
+    function processPhotoAndSend(empName, action, location, odometer, file) {
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = function() {
+                sendData(empName, action, location, odometer, reader.result, file.name);
+            };
+            reader.readAsDataURL(file); 
+        } else {
+            sendData(empName, action, location, odometer, null, null);
+        }
+    }
+
+    function sendData(empName, action, location, odometer, photoData, photoName) {
+        const payload = { empName, action, location, odometer, photoData, photoName };
+
+        fetch(WEB_APP_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        })
+        .then(() => {
+            setStatus(`Successfully logged: ${action}!`, '#28a745');
+            // Clear form inputs
+            document.getElementById('empName').value = '';
+            document.getElementById('odometer').value = '';
+            document.getElementById('photoFile').value = '';
+            document.getElementById('preview').style.display = 'none';
+        })
+        .catch(err => {
+            setStatus('Error logging data. Try again.', '#dc3545');
+            console.error(err);
+        });
+    }
+
+    function setStatus(text, color) {
+        const statusDiv = document.getElementById('status');
+        statusDiv.innerText = text;
+        statusDiv.style.color = color;
+    }
+</script>
+</body>
+</html>
